@@ -1,8 +1,10 @@
 package core
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
+	"reflect"
 	"strings"
 
 	"github.com/MichaelMure/git-bug/cache"
@@ -13,17 +15,35 @@ import (
 var ErrImportNorSupported = errors.New("import is not supported")
 var ErrExportNorSupported = errors.New("export is not supported")
 
+var bridgeImpl map[string]reflect.Type
+
 // Bridge is a wrapper around a BridgeImpl that will bind low-level
 // implementation with utility code to provide high-level functions.
 type Bridge struct {
+	Name string
 	impl BridgeImpl
 	conf Configuration
 }
 
-func NewBridge(impl BridgeImpl) *Bridge {
-	return &Bridge{
-		impl: impl,
+// Register will register a new type of BridgeImpl
+func Register(_type string, impl interface{}) {
+	if bridgeImpl == nil {
+		bridgeImpl = make(map[string]reflect.Type)
 	}
+	bridgeImpl[_type] = reflect.TypeOf(impl)
+}
+
+func LoadBridge(_type string, name string) (*Bridge, error) {
+	implType, ok := bridgeImpl[_type]
+	if !ok {
+		return nil, fmt.Errorf("unknown bridge type %v", _type)
+	}
+
+	b := reflect.New(implType).Interface()
+
+	deref := reflect.ValueOf(b).Elem().Interface()
+
+	opp.Operations = append(opp.Operations, deref.(Operation))
 }
 
 func (b *Bridge) Configure(repo repository.RepoCommon) error {
@@ -37,7 +57,7 @@ func (b *Bridge) Configure(repo repository.RepoCommon) error {
 
 func (b *Bridge) storeConfig(repo repository.RepoCommon, conf Configuration) error {
 	for key, val := range conf {
-		storeKey := fmt.Sprintf("git-bug.%s.%s", b.impl.Name(), key)
+		storeKey := fmt.Sprintf("git-bug.%s.%s.%s", b.impl.Type(), b.Name, key)
 
 		cmd := exec.Command("git", "config", "--replace-all", storeKey, val)
 		cmd.Dir = repo.GetPath()
@@ -64,7 +84,7 @@ func (b Bridge) getConfig(repo repository.RepoCommon) (Configuration, error) {
 }
 
 func (b Bridge) loadConfig(repo repository.RepoCommon) (Configuration, error) {
-	key := fmt.Sprintf("git-bug.%s", b.impl.Name())
+	key := fmt.Sprintf("git-bug.%s.%s", b.impl.Type(), b.Name)
 	cmd := exec.Command("git", "config", "--get-regexp", key)
 	cmd.Dir = repo.GetPath()
 

@@ -6,8 +6,8 @@ import (
 )
 
 // Bridges return all known bridges
-func Bridges() []*core.Bridge {
-	return []*core.Bridge{
-		core.NewBridge(&github.Github{}),
+func Bridges() []core.BridgeImpl {
+	return []core.BridgeImpl{
+		&github.Github{},
 	}
 }

@@ -7,7 +7,7 @@ import (
 
 type Github struct{}
 
-func (*Github) Name() string {
+func (*Github) Type() string {
 	return "github"
 }
 
